@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": false,
+    "declaration": false,
+    "incremental": true,
+    "outDir": "./dist",
+    "removeComments": true,
+    "tsBuildInfoFile": "./dist/tsconfig.prod.cjs.tsbuildinfo",
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "noEmit": false
+  }
+}

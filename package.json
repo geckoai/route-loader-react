@@ -1,0 +1,37 @@
+{
+  "name": "@geckoai/route-loader-react",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/cjs",
+  "types": "dist/types",
+  "module": "dist/esm",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:clean": "rimraf dist && rimraf docs",
+    "build:cjs": "tsc --project tsconfig.prod.cjs.json",
+    "build:amd": "tsc --project tsconfig.prod.amd.json",
+    "build:esm": "tsc --project tsconfig.prod.esm.json",
+    "build:types": "tsc --project tsconfig.prod.types.json",
+    "build:docs": "typedoc --options ./typedoc.json",
+    "release": "pnpm run build:cjs && pnpm run build:amd && pnpm run build:esm && pnpm run build:types "
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geckoai/route-loader-react.git"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.7",
+    "react": "^19.1.0",
+    "react-router-dom": "^7.5.3",
+    "@geckoai/http": "^2.0.2",
+    "qs": "^6.13.0",
+    "@types/qs": "^6.14.0",
+    "@geckoai/class-transformer": "^1.0.2",
+    "@geckoai/class-mirror": "^1.0.2",
+    "@geckoai/gecko-core": "^1.0.3"
+  },
+  "peerDependencies": {
+    "react": ">= 16",
+    "typescript": "^3.2.1 || ^4"
+  }
+}
