@@ -62,8 +62,11 @@ class Preloaded<D, P> {
   }
 }
 
+
+export type PreloadGetParams<T extends object> = (container: Container) => Partial<T>;
+
 class PreloadBuilder<R = any, P extends object = any> {
-  constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>) {
+  constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>, private get?: PreloadGetParams<P>) {
     this.fetch = this.fetch.bind(this);
   }
 
@@ -71,13 +74,19 @@ class PreloadBuilder<R = any, P extends object = any> {
     return this.target;
   }
 
-  public static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>) {
-    return new PreloadBuilder<R, P>(target, provide);
+  public static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>) {
+    return new PreloadBuilder<R, P>(target, provide, get);
   }
 
   public async fetch(container: Container, transformer: ClassTransformer, origin: object) {
     const body = transformer.transform(this.target, origin);
     const httpClient = container.get<HttpClient>(this.provide.provide);
+    if (this.get) {
+      const data = this.get(container) as any;
+      Object.keys(data).forEach((key) => {
+        (body as any)[key] = data[key];
+      })
+    }
     const result = await httpClient.fetch(body);
     return [body, result.data] as [P, R]
   }
