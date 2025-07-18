@@ -63,7 +63,7 @@ class Preloaded<D, P> {
 }
 
 
-export type PreloadGetParams<T extends object> = (container: Container) => Partial<T>;
+export type PreloadGetParams<T extends object> = (container: Container) => Promise<Partial<T>> | Partial<T>;
 
 class PreloadBuilder<R = any, P extends object = any> {
   constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>, private get?: PreloadGetParams<P>) {
@@ -82,7 +82,7 @@ class PreloadBuilder<R = any, P extends object = any> {
     const body = transformer.transform(this.target, origin);
     const httpClient = container.get<HttpClient>(this.provide.provide);
     if (this.get) {
-      const data = this.get(container) as any;
+      const data = await this.get(container) as any;
       Object.keys(data).forEach((key) => {
         (body as any)[key] = data[key];
       })
