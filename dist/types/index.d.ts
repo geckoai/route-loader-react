@@ -36,12 +36,14 @@ declare class Preloaded<D, P> {
     get type(): Newable<P, any[]>;
     useState(): [D, Dispatch<SetStateAction<P>>];
 }
+export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
 declare class PreloadBuilder<R = any, P extends object = any> {
     private target;
     private provide;
-    constructor(target: Newable<P>, provide: FactoryProvider<HttpClient>);
+    private get?;
+    constructor(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>);
     get type(): Newable<P, any[]>;
-    static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>): PreloadBuilder<R, P>;
+    static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>): PreloadBuilder<R, P>;
     fetch(container: Container, transformer: ClassTransformer, origin: object): Promise<[P, R]>;
 }
 export type LoadedReturn<T> = T extends PreloadBuilder<infer U, infer P> ? Preloaded<U, P> : never;
@@ -51,9 +53,9 @@ export declare class RouteLoader<T extends PreloadBuilder[]> {
     static Preloaded: typeof Preloaded;
     private __loads;
     constructor(...loads: T);
+    static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T>;
     loader({ request, params }: LoaderFunctionArgs, container: Container): Promise<Preloaded<any, any>[]>;
     usePreloading(): boolean;
     usePreloadData(): LoadedReturns<T>;
-    static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T>;
 }
 export {};

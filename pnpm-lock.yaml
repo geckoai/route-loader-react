@@ -39,6 +39,9 @@ importers:
       react-router-dom:
         specifier: ^7.5.3
         version: 7.6.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
 
 packages:
 

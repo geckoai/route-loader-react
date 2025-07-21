@@ -63,7 +63,7 @@ class Preloaded<D, P> {
 }
 
 
-export type PreloadGetParams<T extends object> = (container: Container) => Promise<Partial<T>> | Partial<T>;
+export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
 
 class PreloadBuilder<R = any, P extends object = any> {
   constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>, private get?: PreloadGetParams<P>) {
@@ -82,7 +82,7 @@ class PreloadBuilder<R = any, P extends object = any> {
     const body = transformer.transform(this.target, origin);
     const httpClient = container.get<HttpClient>(this.provide.provide);
     if (this.get) {
-      const data = await this.get(container) as any;
+      const data = await this.get(container, body, origin as any) as any;
       Object.keys(data).forEach((key) => {
         (body as any)[key] = data[key];
       })
@@ -100,10 +100,15 @@ export class RouteLoader<T extends PreloadBuilder[]> {
   public static PreloadBuilder = PreloadBuilder;
   public static Preloaded = Preloaded;
   private __loads: T;
+
   constructor(...loads: T) {
     this.__loads = loads;
     this.loader = this.loader.bind(this);
     this.usePreloadData = this.usePreloadData.bind(this);
+  }
+
+  public static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T> {
+    return new RouteLoader<T>(...builders);
   }
 
   public async loader({request, params}: LoaderFunctionArgs, container: Container) {
@@ -124,9 +129,5 @@ export class RouteLoader<T extends PreloadBuilder[]> {
 
   public usePreloadData(): LoadedReturns<T> {
     return useLoaderData() as any;
-  }
-
-  public static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T> {
-    return new RouteLoader<T>(...builders);
   }
 }

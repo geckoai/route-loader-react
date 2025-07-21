@@ -98,9 +98,10 @@ var Preloaded = (function () {
     return Preloaded;
 }());
 var PreloadBuilder = (function () {
-    function PreloadBuilder(target, provide) {
+    function PreloadBuilder(target, provide, get) {
         this.target = target;
         this.provide = provide;
+        this.get = get;
         this.fetch = this.fetch.bind(this);
     }
     Object.defineProperty(PreloadBuilder.prototype, "type", {
@@ -110,19 +111,27 @@ var PreloadBuilder = (function () {
         enumerable: false,
         configurable: true
     });
-    PreloadBuilder.for = function (target, provide) {
-        return new PreloadBuilder(target, provide);
+    PreloadBuilder.for = function (target, provide, get) {
+        return new PreloadBuilder(target, provide, get);
     };
     PreloadBuilder.prototype.fetch = function (container, transformer, origin) {
         return __awaiter(this, void 0, void 0, function () {
-            var body, httpClient, result;
+            var body, httpClient, data_1, result;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         body = transformer.transform(this.target, origin);
                         httpClient = container.get(this.provide.provide);
-                        return [4, httpClient.fetch(body)];
+                        if (!this.get) return [3, 2];
+                        return [4, this.get(container, body, origin)];
                     case 1:
+                        data_1 = _a.sent();
+                        Object.keys(data_1).forEach(function (key) {
+                            body[key] = data_1[key];
+                        });
+                        _a.label = 2;
+                    case 2: return [4, httpClient.fetch(body)];
+                    case 3:
                         result = _a.sent();
                         return [2, [body, result.data]];
                 }
@@ -141,6 +150,13 @@ var RouteLoader = (function () {
         this.loader = this.loader.bind(this);
         this.usePreloadData = this.usePreloadData.bind(this);
     }
+    RouteLoader.for = function () {
+        var builders = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            builders[_i] = arguments[_i];
+        }
+        return new (RouteLoader.bind.apply(RouteLoader, __spreadArray([void 0], builders, false)))();
+    };
     RouteLoader.prototype.loader = function (_a, container) {
         var request = _a.request, params = _a.params;
         return __awaiter(this, void 0, void 0, function () {
@@ -175,13 +191,6 @@ var RouteLoader = (function () {
     };
     RouteLoader.prototype.usePreloadData = function () {
         return useLoaderData();
-    };
-    RouteLoader.for = function () {
-        var builders = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            builders[_i] = arguments[_i];
-        }
-        return new (RouteLoader.bind.apply(RouteLoader, __spreadArray([void 0], builders, false)))();
     };
     RouteLoader.PreloadBuilder = PreloadBuilder;
     RouteLoader.Preloaded = Preloaded;
