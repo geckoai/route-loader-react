@@ -1,6 +1,6 @@
 {
-  "name": "@geckoai/route-loader-react",
-  "version": "1.0.3",
+  "name": "@geckoai/route-loader-react-next",
+  "version": "1.0.0",
   "description": "",
   "main": "dist/cjs",
   "types": "dist/types",
