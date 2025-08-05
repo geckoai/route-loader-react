@@ -26,10 +26,13 @@ import {ClassTransformer} from "@geckoai/class-transformer";
 import {Container, FactoryProvider, Newable} from "@geckoai/gecko-core";
 import {HttpClient} from "@geckoai/http";
 import {LoaderFunctionArgs, useLoaderData, useNavigate, useNavigation} from "react-router-dom";
-import qs from "qs";
+import qs, {BooleanOptional, IParseOptions} from "qs";
 import {Dispatch, SetStateAction} from "react";
 
 
+/**
+ * 预加载数据
+ */
 class Preloaded<D, P> {
   constructor(private target: Newable<P>, private readonly data: D, private readonly params: P, private readonly originParams: object) {
     this.useState = this.useState.bind(this);
@@ -62,11 +65,16 @@ class Preloaded<D, P> {
   }
 }
 
-
-export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
-
-class PreloadBuilder<R = any, P extends object = any> {
-  constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>, private get?: PreloadGetParams<P>) {
+/**
+ * 预加载器
+ */
+class Preload<R = any, P extends object = any> {
+  constructor(
+    private target: Newable<P>,
+    private provide: FactoryProvider<HttpClient>,
+    private getter?: PreloadGetParams<P>,
+    private transform?: (values: any) => R,
+  ) {
     this.fetch = this.fetch.bind(this);
   }
 
@@ -74,31 +82,101 @@ class PreloadBuilder<R = any, P extends object = any> {
     return this.target;
   }
 
-  public static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>) {
-    return new PreloadBuilder<R, P>(target, provide, get);
-  }
-
   public async fetch(container: Container, transformer: ClassTransformer, origin: object) {
     const body = transformer.transform(this.target, origin);
     const httpClient = container.get<HttpClient>(this.provide.provide);
-    if (this.get) {
-      const data = await this.get(container, body, origin as any) as any;
+    if (this.getter) {
+      const data = await this.getter(container, body, origin as any) as any;
       Object.keys(data).forEach((key) => {
         (body as any)[key] = data[key];
       })
     }
     const result = await httpClient.fetch(body);
+    if (this.transform) {
+      return [body, this.transform(result.data)] as [P, R]
+    }
     return [body, result.data] as [P, R]
   }
 }
 
-export type LoadedReturn<T> = T extends PreloadBuilder<infer U, infer P> ? Preloaded<U, P> : never;
-export type LoadedReturns<T extends PreloadBuilder[]> = T extends [infer First, ...infer Rest extends PreloadBuilder[]] ? [LoadedReturn<First>, ...LoadedReturns<Rest>] : [];
+class PreParser<P extends object = any> {
+  constructor(
+    private target: Newable<P>,
+    private getter?: PreloadGetParams<P>
+  ) {}
 
+  public get type() {
+    return this.target;
+  }
 
-export class RouteLoader<T extends PreloadBuilder[]> {
+  public async parse(container: Container, transformer: ClassTransformer, origin: object): Promise<P> {
+    const start = transformer.transform(this.target, origin);
+    if (this.getter) {
+      const data = await this.getter(container, start, origin as any) as any;
+      return transformer.transform(this.target, {...start, ...data});
+    }
+    return start;
+  }
+
+  public static for<P extends object>(target: Newable<P>, getter?: PreloadGetParams<P>) {
+    return new PreParser<P>(target, getter);
+  }
+}
+
+/**
+ * 预加载builder 用于创建 Preload
+ */
+class PreloadBuilder<P extends object> {
+  constructor(private target: Newable<P>, private provide: FactoryProvider<HttpClient>, private getter?: PreloadGetParams<P>) {
+  }
+
+  public static for<P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, getter?: PreloadGetParams<P>) {
+    return new PreloadBuilder<P>(target, provide, getter);
+  }
+
+  public setProvide(provide: FactoryProvider<HttpClient>) {
+    this.provide = provide;
+  }
+
+  public setTarget(target: Newable<P>) {
+    this.target = target;
+  }
+
+  public setParamGetter(getter: PreloadGetParams<P>) {
+    this.getter = getter;
+  }
+
+  public build<H extends (value: any) => any>(handler: H): Preload<ReturnType<H>, P>;
+  public build<R>(): Preload<R, P>;
+  public build(handler?: (value: any) => any): Preload {
+    if (handler) {
+      return new Preload(this.target, this.provide, this.getter, handler);
+    }
+    return new Preload(this.target, this.provide, this.getter);
+  }
+}
+
+/**
+ * 路由数据加载器
+ */
+export class RouteLoader<T extends Array<Preload | PreParser>> {
   public static PreloadBuilder = PreloadBuilder;
   public static Preloaded = Preloaded;
+  public static Preload = Preload;
+  public static PreParser = PreParser;
+
+  private static options: IParseOptions<BooleanOptional> = {
+    arrayLimit: 10000
+  }
+
+  public static setOptions(options: IParseOptions<BooleanOptional>) {
+    this.options = options
+  }
+
+  public static mergeOptions(options: IParseOptions<BooleanOptional>) {
+    this.options = Object.assign(options, this.options);
+  }
+
   private __loads: T;
 
   constructor(...loads: T) {
@@ -107,16 +185,20 @@ export class RouteLoader<T extends PreloadBuilder[]> {
     this.usePreloadData = this.usePreloadData.bind(this);
   }
 
-  public static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T> {
+  public static for<T extends Array<Preload | PreParser>>(...builders: T): RouteLoader<T> {
     return new RouteLoader<T>(...builders);
   }
 
   public async loader({request, params}: LoaderFunctionArgs, container: Container) {
     const url = new URL(request.url);
-    const query = qs.parse(url.search.replace(/^\?/, ''));
+    const query = qs.parse(url.search.replace(/^\?/, ''), RouteLoader.options);
     const transformer = container.get(ClassTransformer);
     const origin = Object.assign({}, params, query);
     return await Promise.all(this.__loads.map(async prod => {
+      if (prod instanceof PreParser) {
+        const params = await prod.parse(container, transformer, origin);
+        return new Preloaded(prod.type, params, params, origin)
+      }
       const [params, data] = await prod.fetch(container, transformer, origin);
       return new Preloaded(prod.type, data, params, origin);
     }))
@@ -131,3 +213,7 @@ export class RouteLoader<T extends PreloadBuilder[]> {
     return useLoaderData() as any;
   }
 }
+
+export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
+export type LoadedReturn<T> = T extends Preload<infer U, infer P> ? Preloaded<U, P> : T extends PreParser<infer U> ? Preloaded<U, U> : never;
+export type LoadedReturns<T extends Array<Preload | PreParser>> = T extends [infer First, ...infer Rest extends Preload[]] ? [LoadedReturn<First>, ...LoadedReturns<Rest>] : [];

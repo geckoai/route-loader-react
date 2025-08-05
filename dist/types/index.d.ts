@@ -25,7 +25,11 @@ import { ClassTransformer } from "@geckoai/class-transformer";
 import { Container, FactoryProvider, Newable } from "@geckoai/gecko-core";
 import { HttpClient } from "@geckoai/http";
 import { LoaderFunctionArgs } from "react-router-dom";
+import { BooleanOptional, IParseOptions } from "qs";
 import { Dispatch, SetStateAction } from "react";
+/**
+ * 预加载数据
+ */
 declare class Preloaded<D, P> {
     private target;
     private readonly data;
@@ -36,26 +40,60 @@ declare class Preloaded<D, P> {
     get type(): Newable<P, any[]>;
     useState(): [D, Dispatch<SetStateAction<P>>];
 }
-export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
-declare class PreloadBuilder<R = any, P extends object = any> {
+/**
+ * 预加载器
+ */
+declare class Preload<R = any, P extends object = any> {
     private target;
     private provide;
-    private get?;
-    constructor(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>);
+    private getter?;
+    private transform?;
+    constructor(target: Newable<P>, provide: FactoryProvider<HttpClient>, getter?: PreloadGetParams<P>, transform?: (values: any) => R);
     get type(): Newable<P, any[]>;
-    static for<R, P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, get?: PreloadGetParams<P>): PreloadBuilder<R, P>;
     fetch(container: Container, transformer: ClassTransformer, origin: object): Promise<[P, R]>;
 }
-export type LoadedReturn<T> = T extends PreloadBuilder<infer U, infer P> ? Preloaded<U, P> : never;
-export type LoadedReturns<T extends PreloadBuilder[]> = T extends [infer First, ...infer Rest extends PreloadBuilder[]] ? [LoadedReturn<First>, ...LoadedReturns<Rest>] : [];
-export declare class RouteLoader<T extends PreloadBuilder[]> {
+declare class PreParser<P extends object = any> {
+    private target;
+    private getter?;
+    constructor(target: Newable<P>, getter?: PreloadGetParams<P>);
+    get type(): Newable<P, any[]>;
+    parse(container: Container, transformer: ClassTransformer, origin: object): Promise<P>;
+    static for<P extends object>(target: Newable<P>, getter?: PreloadGetParams<P>): PreParser<P>;
+}
+/**
+ * 预加载builder 用于创建 Preload
+ */
+declare class PreloadBuilder<P extends object> {
+    private target;
+    private provide;
+    private getter?;
+    constructor(target: Newable<P>, provide: FactoryProvider<HttpClient>, getter?: PreloadGetParams<P>);
+    static for<P extends object>(target: Newable<P>, provide: FactoryProvider<HttpClient>, getter?: PreloadGetParams<P>): PreloadBuilder<P>;
+    setProvide(provide: FactoryProvider<HttpClient>): void;
+    setTarget(target: Newable<P>): void;
+    setParamGetter(getter: PreloadGetParams<P>): void;
+    build<H extends (value: any) => any>(handler: H): Preload<ReturnType<H>, P>;
+    build<R>(): Preload<R, P>;
+}
+/**
+ * 路由数据加载器
+ */
+export declare class RouteLoader<T extends Array<Preload | PreParser>> {
     static PreloadBuilder: typeof PreloadBuilder;
     static Preloaded: typeof Preloaded;
+    static Preload: typeof Preload;
+    static PreParser: typeof PreParser;
+    private static options;
+    static setOptions(options: IParseOptions<BooleanOptional>): void;
+    static mergeOptions(options: IParseOptions<BooleanOptional>): void;
     private __loads;
     constructor(...loads: T);
-    static for<T extends PreloadBuilder[]>(...builders: T): RouteLoader<T>;
+    static for<T extends Array<Preload | PreParser>>(...builders: T): RouteLoader<T>;
     loader({ request, params }: LoaderFunctionArgs, container: Container): Promise<Preloaded<any, any>[]>;
     usePreloading(): boolean;
     usePreloadData(): LoadedReturns<T>;
 }
+export type PreloadGetParams<T extends object> = (container: Container, body: T, origin: T & Record<string | number, unknown>) => Promise<Partial<T>> | Partial<T>;
+export type LoadedReturn<T> = T extends Preload<infer U, infer P> ? Preloaded<U, P> : T extends PreParser<infer U> ? Preloaded<U, U> : never;
+export type LoadedReturns<T extends Array<Preload | PreParser>> = T extends [infer First, ...infer Rest extends Preload[]] ? [LoadedReturn<First>, ...LoadedReturns<Rest>] : [];
 export {};

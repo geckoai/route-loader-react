@@ -1,6 +1,6 @@
 {
-  "name": "@geckoai/route-loader-react-next",
-  "version": "1.0.0",
+  "name": "@geckoai/route-loader-react",
+  "version": "2.0.1",
   "description": "",
   "main": "dist/cjs",
   "types": "dist/types",
@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/geckoai/route-loader-react.git"
+    "url": "https://github.com/geckoai/route-loader-react/tree/next"
   },
   "devDependencies": {
     "@types/react": "^19.1.7",

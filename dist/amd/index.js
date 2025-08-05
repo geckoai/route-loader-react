@@ -102,24 +102,22 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
         };
         return Preloaded;
     }());
-    var PreloadBuilder = (function () {
-        function PreloadBuilder(target, provide, get) {
+    var Preload = (function () {
+        function Preload(target, provide, getter, transform) {
             this.target = target;
             this.provide = provide;
-            this.get = get;
+            this.getter = getter;
+            this.transform = transform;
             this.fetch = this.fetch.bind(this);
         }
-        Object.defineProperty(PreloadBuilder.prototype, "type", {
+        Object.defineProperty(Preload.prototype, "type", {
             get: function () {
                 return this.target;
             },
             enumerable: false,
             configurable: true
         });
-        PreloadBuilder.for = function (target, provide, get) {
-            return new PreloadBuilder(target, provide, get);
-        };
-        PreloadBuilder.prototype.fetch = function (container, transformer, origin) {
+        Preload.prototype.fetch = function (container, transformer, origin) {
             return __awaiter(this, void 0, void 0, function () {
                 var body, httpClient, data_1, result;
                 return __generator(this, function (_a) {
@@ -127,8 +125,8 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
                         case 0:
                             body = transformer.transform(this.target, origin);
                             httpClient = container.get(this.provide.provide);
-                            if (!this.get) return [3, 2];
-                            return [4, this.get(container, body, origin)];
+                            if (!this.getter) return [3, 2];
+                            return [4, this.getter(container, body, origin)];
                         case 1:
                             data_1 = _a.sent();
                             Object.keys(data_1).forEach(function (key) {
@@ -138,10 +136,73 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
                         case 2: return [4, httpClient.fetch(body)];
                         case 3:
                             result = _a.sent();
+                            if (this.transform) {
+                                return [2, [body, this.transform(result.data)]];
+                            }
                             return [2, [body, result.data]];
                     }
                 });
             });
+        };
+        return Preload;
+    }());
+    var PreParser = (function () {
+        function PreParser(target, getter) {
+            this.target = target;
+            this.getter = getter;
+        }
+        Object.defineProperty(PreParser.prototype, "type", {
+            get: function () {
+                return this.target;
+            },
+            enumerable: false,
+            configurable: true
+        });
+        PreParser.prototype.parse = function (container, transformer, origin) {
+            return __awaiter(this, void 0, void 0, function () {
+                var start, data;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0:
+                            start = transformer.transform(this.target, origin);
+                            if (!this.getter) return [3, 2];
+                            return [4, this.getter(container, start, origin)];
+                        case 1:
+                            data = _a.sent();
+                            return [2, transformer.transform(this.target, __assign(__assign({}, start), data))];
+                        case 2: return [2, start];
+                    }
+                });
+            });
+        };
+        PreParser.for = function (target, getter) {
+            return new PreParser(target, getter);
+        };
+        return PreParser;
+    }());
+    var PreloadBuilder = (function () {
+        function PreloadBuilder(target, provide, getter) {
+            this.target = target;
+            this.provide = provide;
+            this.getter = getter;
+        }
+        PreloadBuilder.for = function (target, provide, getter) {
+            return new PreloadBuilder(target, provide, getter);
+        };
+        PreloadBuilder.prototype.setProvide = function (provide) {
+            this.provide = provide;
+        };
+        PreloadBuilder.prototype.setTarget = function (target) {
+            this.target = target;
+        };
+        PreloadBuilder.prototype.setParamGetter = function (getter) {
+            this.getter = getter;
+        };
+        PreloadBuilder.prototype.build = function (handler) {
+            if (handler) {
+                return new Preload(this.target, this.provide, this.getter, handler);
+            }
+            return new Preload(this.target, this.provide, this.getter);
         };
         return PreloadBuilder;
     }());
@@ -155,6 +216,12 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
             this.loader = this.loader.bind(this);
             this.usePreloadData = this.usePreloadData.bind(this);
         }
+        RouteLoader.setOptions = function (options) {
+            this.options = options;
+        };
+        RouteLoader.mergeOptions = function (options) {
+            this.options = Object.assign(options, this.options);
+        };
         RouteLoader.for = function () {
             var builders = [];
             for (var _i = 0; _i < arguments.length; _i++) {
@@ -171,15 +238,21 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
                     switch (_b.label) {
                         case 0:
                             url = new URL(request.url);
-                            query = qs_1.default.parse(url.search.replace(/^\?/, ''));
+                            query = qs_1.default.parse(url.search.replace(/^\?/, ''), RouteLoader.options);
                             transformer = container.get(class_transformer_1.ClassTransformer);
                             origin = Object.assign({}, params, query);
                             return [4, Promise.all(this.__loads.map(function (prod) { return __awaiter(_this, void 0, void 0, function () {
-                                    var _a, params, data;
+                                    var params_1, _a, params, data;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
-                                            case 0: return [4, prod.fetch(container, transformer, origin)];
+                                            case 0:
+                                                if (!(prod instanceof PreParser)) return [3, 2];
+                                                return [4, prod.parse(container, transformer, origin)];
                                             case 1:
+                                                params_1 = _b.sent();
+                                                return [2, new Preloaded(prod.type, params_1, params_1, origin)];
+                                            case 2: return [4, prod.fetch(container, transformer, origin)];
+                                            case 3:
                                                 _a = _b.sent(), params = _a[0], data = _a[1];
                                                 return [2, new Preloaded(prod.type, data, params, origin)];
                                         }
@@ -199,6 +272,11 @@ define(["require", "exports", "@geckoai/class-transformer", "react-router-dom", 
         };
         RouteLoader.PreloadBuilder = PreloadBuilder;
         RouteLoader.Preloaded = Preloaded;
+        RouteLoader.Preload = Preload;
+        RouteLoader.PreParser = PreParser;
+        RouteLoader.options = {
+            arrayLimit: 10000
+        };
         return RouteLoader;
     }());
     exports.RouteLoader = RouteLoader;
